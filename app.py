@@ -2,11 +2,30 @@ from flask import Flask, request
 import sqlite3, json
 from multiprocessing import Manager
 
+import time, atexit
+from apscheduler.schedulers.background import BackgroundScheduler
+
+
 app = Flask(__name__)
 
 def create_hourly_stats():
+    print("\n")
+    print(time.strftime("%A, %d. %B %Y %I:%M:%S %p"))
+
+    print("----total_request_count-----")
     print(total_request_count)
+    print("----invalid_request_count-----")
     print(invalid_request_count)
+
+
+@app.before_first_request
+def init_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(func=create_hourly_stats, trigger="interval", seconds=20)
+    scheduler.start()
+
+    # Shut down the scheduler when exiting the app
+    atexit.register(lambda: scheduler.shutdown())
 
 
 # Empty stub function for valid requests
