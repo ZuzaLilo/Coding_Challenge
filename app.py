@@ -20,17 +20,20 @@ def create_hourly_stats():
     connection = sqlite3.connect('database.db')
     cur = connection.cursor()
 
-    for client_id, req_count in total_request_count.items():
-        cur.execute('INSERT INTO hourly_stats (customer_id, time, request_count, invalid_count) VALUES (?, ?, ?, ?)', (client_id, time_now, req_count, invalid_request_count[client_id]))
-
-
-    connection.commit()
-    connection.close()
-
     print("----total_request_count-----")
     print(total_request_count)
     print("----invalid_request_count-----")
     print(invalid_request_count)
+
+    for client_id, req_count in total_request_count.items():
+        cur.execute('INSERT INTO hourly_stats (customer_id, time, request_count, invalid_count) VALUES (?, ?, ?, ?)', (client_id, time_now, req_count, invalid_request_count[client_id]))
+        
+        # Empty statistics after inserting to database
+        total_request_count[client_id] = 0
+        invalid_request_count[client_id] = 0
+
+    connection.commit()
+    connection.close()
 
 
 @app.before_first_request
