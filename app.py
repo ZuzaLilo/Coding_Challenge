@@ -2,8 +2,11 @@ from flask import Flask, request
 import sqlite3, json
 from multiprocessing import Manager
 
-import time, atexit
+import time, atexit, datetime
 from apscheduler.schedulers.background import BackgroundScheduler
+
+from datetime import datetime, timedelta
+from dateutil import tz
 
 
 app = Flask(__name__)
@@ -162,6 +165,33 @@ def index():
 
 
     return returnString
+
+
+
+@app.route('/stats', methods = ['GET'])
+def stats():
+
+    # Get today's date
+    today = datetime.utcnow().date()
+
+    # Calculate start of today and end
+    start = datetime(today.year, today.month, today.day,  tzinfo=tz.tzutc())
+    end = start + timedelta(1)
+
+    # Get timestamps for start and end
+    start_timestamp = start.timestamp()
+    end_timestamp = end.timestamp()
+
+    # Get total count between start and end timestamps from database
+    connection = sqlite3.connect('database.db')
+    cur = connection.cursor()
+
+    total_request_count_in_day = cur.execute('SELECT COUNT(request_count) FROM hourly_stats WHERE time BETWEEN ? AND ?', (start_timestamp, end_timestamp)).fetchall()
+
+    connection.close()
+
+
+    return "Total number of requests today (" + str(today) + ") is: " + str(total_request_count_in_day[0][0])
 
 
 
