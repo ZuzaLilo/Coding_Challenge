@@ -179,6 +179,8 @@ def stats():
     month = request.args.get('month')
     year = request.args.get('year')
 
+    customer_id = request.args.get('customer_id')
+
     if day and month and year:
 
         try:
@@ -204,6 +206,24 @@ def stats():
         total_requests_in_day = cur.execute('SELECT SUM(request_count) FROM hourly_stats WHERE time BETWEEN ? AND ?', (day_start_timestamp, day_end_timestamp)).fetchall()
 
         connection.close()
+
+        if customer_id:
+
+            try:
+                connection = sqlite3.connect('database.db')
+                cur = connection.cursor()
+
+                requests_per_customer = cur.execute('SELECT SUM(request_count), SUM(invalid_count) FROM hourly_stats WHERE (time BETWEEN ? AND ?) AND customer_id = ?', (day_start_timestamp, day_end_timestamp, customer_id)).fetchall()
+
+                connection.close()
+
+                if requests_per_customer[0][0] != None:
+                    return "Requests on " + str(get_day_start.date()) + " for customer with id " + str(customer_id) + ": Total requests: " + str(requests_per_customer[0][0]) + ", Invalid requests: " + str(requests_per_customer[0][1])
+                else: 
+                    return "Wrong customer ID!"
+            except:
+                return "Failed to fetch results from database!"
+            
 
 
         return "Total number of requests on " + str(get_day_start.date()) + " is: " + str(total_requests_in_day[0][0] if total_requests_in_day[0][0]!= None else 0)
