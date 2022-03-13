@@ -32,7 +32,10 @@ python app.py
 
 ## How to use
 
-1. General JSON POST requests send to '/' endpoint (NOTE: Need to provide a customer_id as a header! For example: 1)
+1. For testing purposes to get statistics more often change interval in init_scheduler() 
+    - For example to seconds=60
+
+2. General JSON POST requests send to '/' endpoint (NOTE: Need to provide a customer_id as a header! For example: 1)
 
     - Send POST request with customer_id header to: [http://127.0.0.1:5000/](http://127.0.0.1:5000/)
 
@@ -41,7 +44,7 @@ python app.py
     {"customerID":1,"tagID":2,"userID":"aaaaaaaa-bbbb-cccc-1111-222222222222","remoteIP":"123.234.56.78","timestamp":1500000000}
     ```
 
-2. For statistics there are 3 different types:
+3. For statistics there are 3 different types:
 
     1. Statistics per DAY: at '/stats' endpoint
         - Provide DATE details as parameters, for example: ?day=13&month=3&year=2022
