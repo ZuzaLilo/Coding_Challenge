@@ -89,6 +89,10 @@ def index():
 
         customerID, tagID, userID, remoteIP, timestamp = checkValidJson(request.data)
 
+        if int(customerID) != header_customer_id:
+            invalid_request_count[header_customer_id] += 1
+            return "You can only make a request with customer_id that matches provided credentials"
+
         # Open database
         connection = sqlite3.connect('database.db')
         cur = connection.cursor()
@@ -98,11 +102,11 @@ def index():
             customerActivity = cur.execute('SELECT active FROM customer WHERE id = ?', (customerID,)).fetchall()
 
             if customerActivity[0][0] == 0:
-                total_request_count[header_customer_id] += 1
+                invalid_request_count[header_customer_id] += 1
                 return 'Customer inactive!'
 
         except:
-            total_request_count[header_customer_id] += 1
+            invalid_request_count[header_customer_id] += 1
             return 'Given customer_id not in the database!'
 
         ip_blacklist = cur.execute('SELECT * FROM ip_blacklist').fetchall()
@@ -116,14 +120,14 @@ def index():
             ip = remoteIP.replace('.', '')
             ip = int(ip)
         except:
-            total_request_count[header_customer_id] += 1
+            invalid_request_count[header_customer_id] += 1
             return 'Incorrect IP!'
 
 
         # Check if IP is blacklisted
         for ip_bl in ip_blacklist:
             if ip_bl[0] == ip:
-                total_request_count[header_customer_id] += 1
+                invalid_request_count[header_customer_id] += 1
                 return 'Blacklisted IP!'
 
 
@@ -132,11 +136,11 @@ def index():
 
         for ua in ua_blacklist:
             if header_user_agent in ua:
-                total_request_count[header_customer_id] += 1
+                invalid_request_count[header_customer_id] += 1
                 return 'Blacklisted User Agent!'
-                
+
     else:
-        total_request_count[header_customer_id] += 1
+        invalid_request_count[header_customer_id] += 1
 
         # Message to return on POST Endpoint
         return 'Invalid JSON data'
@@ -250,6 +254,9 @@ def customerStats():
 
         except:
             return "Failed to fetch results from database!"
+
+    else:
+        return "Please provide a valid customer_id as a parameter!"
 
 
 
