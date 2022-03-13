@@ -88,13 +88,14 @@ def checkValidJson(data):
 
 @app.route('/', methods = ['POST'])
 def index():
-
+    
     try:
-        request_data = request.get_json()
-        customer_id = request_data['customerID']
-        total_request_count[customer_id] += 1
+        #  To send request user must provide their credentials first as a parameter
+        header_customer_id = int(request.headers.get('customer_id'))
+        total_request_count[header_customer_id] += 1
+
     except:
-        print("Can't count request: can't find customer id!")
+        return "To access this service please provide your credentials (customer_id) as a parameter!"
 
 
     # returns true or false
@@ -114,9 +115,8 @@ def index():
             ip = remoteIP.replace('.', '')
             ip = int(ip)
         except:
-            returnString = 'Incorrect IP!'
-            invalid_request_count[customerID] += 1
-            # TODO: exit
+            total_request_count[header_customer_id] += 1
+            return 'Incorrect IP!'
 
 
         # Check if IP is blacklisted
@@ -124,9 +124,8 @@ def index():
 
         for ip_bl in ip_blacklist:
             if ip_bl[0] == ip:
-                returnString = 'Blacklisted IP!'
-                invalid_request_count[customerID] += 1
-                # TODO: exit
+                total_request_count[header_customer_id] += 1
+                return 'Blacklisted IP!'
 
 
         # Check if username contains blacklisted user agent
@@ -134,9 +133,8 @@ def index():
 
         for ua in ua_blacklist:
             if ua[0] in userID:
-                returnString = 'Blacklisted User Agent!'
-                invalid_request_count[customerID] += 1
-                # TODO: exit
+                total_request_count[header_customer_id] += 1
+                return 'Blacklisted User Agent!'
 
 
         # Check if customer exists and is active
@@ -144,30 +142,23 @@ def index():
             customerActivity = cur.execute('SELECT active FROM customer WHERE id = ?', (customerID,)).fetchall()
 
             if customerActivity[0][0] == 0:
-                returnString = 'Customer inactive!'
-                invalid_request_count[customerID] += 1
-                # TODO: exit
+                total_request_count[header_customer_id] += 1
+                return 'Customer inactive!'
 
         except:
-            returnString = 'Customer not in the database, cannot assign count request to customer!'
-            # TODO: exit
+            total_request_count[header_customer_id] += 1
+            return 'Given customer_id not in the database!'
 
         connection.close()
 
-
+        # If all above condictions passed then process request
         process_request(customerID, tagID, userID, remoteIP, timestamp)
     
     else:
+        total_request_count[header_customer_id] += 1
+
         # Message to return on POST Endpoint
-        returnString = 'Invalid request'
-
-        try:
-            invalid_request_count[customer_id] += 1
-        except:
-            print("Can't count request: can't find customer id!")
-
-
-    return returnString
+        return 'Invalid JSON data'
 
 
 
