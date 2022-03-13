@@ -5,7 +5,7 @@ from multiprocessing import Manager
 import time, atexit, datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from dateutil import tz
 
 
@@ -174,27 +174,50 @@ def index():
 @app.route('/stats', methods = ['GET'])
 def stats():
 
-    # Get today's date
-    today = datetime.utcnow().date()
+    # Get date parameters from request
+    day = request.args.get('day')
+    month = request.args.get('month')
+    year = request.args.get('year')
 
-    # Calculate start of today and end
-    start = datetime(today.year, today.month, today.day,  tzinfo=tz.tzutc())
-    end = start + timedelta(1)
+    if day and month and year:
 
-    # Get timestamps for start and end
-    start_timestamp = start.timestamp()
-    end_timestamp = end.timestamp()
+        try:
+            day = int(request.args.get('day'))
+            month = int(request.args.get('month'))
+            year = int(request.args.get('year'))
+        except:
+            return "Date arguments must be numeric!"
 
-    # Get total count between start and end timestamps from database
-    connection = sqlite3.connect('database.db')
-    cur = connection.cursor()
+        # Create datetime object for day start
+        get_day_start = datetime(year, month, day, tzinfo=tz.tzutc())
+        # Add a day difference to create end day object
+        get_day_end = get_day_start + timedelta(1)
 
-    total_request_count_in_day = cur.execute('SELECT COUNT(request_count) FROM hourly_stats WHERE time BETWEEN ? AND ?', (start_timestamp, end_timestamp)).fetchall()
+        # Convert to timestamps
+        day_start_timestamp = get_day_start.timestamp()
+        day_end_timestamp = get_day_end.timestamp()
 
-    connection.close()
+        # Sum requests between start and end timestamps from database
+        connection = sqlite3.connect('database.db')
+        cur = connection.cursor()
+
+        total_requests_in_day = cur.execute('SELECT SUM(request_count) FROM hourly_stats WHERE time BETWEEN ? AND ?', (day_start_timestamp, day_end_timestamp)).fetchall()
+
+        connection.close()
 
 
-    return "Total number of requests today (" + str(today) + ") is: " + str(total_request_count_in_day[0][0])
+        return "Total number of requests on " + str(get_day_start.date()) + " is: " + str(total_requests_in_day[0][0] if total_requests_in_day[0][0]!= None else 0)
+
+    else:   
+        # If any of arguments not provided or arguments not numeric
+        
+        # Get today's date
+        current_day = date.today()
+
+        return '''Please provide date arguments: day, month and year to the request (in numbers), 
+                \nFor today use: http://127.0.0.1:5000/stats?day={}&month={}&year={}'''.format(current_day.day, current_day.month, current_day.year)
+
+    
 
 
 
