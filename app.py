@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 import sqlite3, json
 from multiprocessing import Manager
 
@@ -218,7 +218,7 @@ def stats():
                 connection.close()
 
                 if requests_per_customer[0][0] != None:
-                    return "Requests on " + str(get_day_start.date()) + " for customer with id " + str(customer_id) + ": Total requests: " + str(requests_per_customer[0][0]) + ", Invalid requests: " + str(requests_per_customer[0][1])
+                    return "Total requests on " + str(get_day_start.date()) + " for customer with id " + str(customer_id) + ": Total requests: " + str(requests_per_customer[0][0]) + ", Invalid requests: " + str(requests_per_customer[0][1])
                 else: 
                     return "Wrong customer ID!"
             except:
@@ -238,7 +238,40 @@ def stats():
                 \nFor today use: http://127.0.0.1:5000/stats?day={}&month={}&year={}'''.format(current_day.day, current_day.month, current_day.year)
 
     
+@app.route('/customerStats', methods = ['GET'])
+def customerStats():
 
+    customer_id = request.args.get('customer_id')
+
+    if customer_id:
+        try:
+            connection = sqlite3.connect('database.db')
+            cur = connection.cursor()
+
+            stats_per_customer = cur.execute('SELECT time, SUM(request_count), SUM(invalid_count) FROM hourly_stats WHERE customer_id = ? GROUP BY time ORDER BY time DESC', (customer_id)).fetchall()
+
+            print(stats_per_customer)
+            connection.close()
+
+            result = {}
+
+            for row in stats_per_customer:
+
+                result_time = str(time.ctime(row[0]))
+                result[result_time] = {
+                    'total_requests' : row[1],
+                    'invalid_requests' : row[2]
+                }
+
+            json_result = jsonify(result)
+
+            if stats_per_customer[0][0] != None:
+                return json_result
+            else: 
+                return "Wrong customer ID!"      
+
+        except:
+            return "Failed to fetch results from database!"
 
 
 
