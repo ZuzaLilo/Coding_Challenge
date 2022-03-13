@@ -11,6 +11,15 @@ from dateutil import tz
 
 app = Flask(__name__)
 
+
+# Empty stub function for valid requests
+def process_request(customerID, tagID, userID, remoteIP, timestamp):
+    returnString = 'customerID: ' + str(customerID) + '\n tagID: ' +  str(tagID) + '\n userID: ' +  str(userID) + '\n remoteIP: ' +  str(remoteIP) + '\n timestamp: ' +  str(timestamp)
+
+    print('Valid request: ' + returnString)
+    # pass
+
+
 def create_hourly_stats():
     print("\n")
     print(time.strftime("%A, %d. %B %Y %I:%M:%S %p"))
@@ -36,54 +45,31 @@ def create_hourly_stats():
     connection.close()
 
 
-@app.before_first_request
-def init_scheduler():
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(func=create_hourly_stats, trigger="interval", seconds=20)
-    scheduler.start()
-
-    # Shut down the scheduler when exiting the app
-    atexit.register(lambda: scheduler.shutdown())
-
-
-# Empty stub function for valid requests
-def process_request(customerID, tagID, userID, remoteIP, timestamp):
-    print('Valid request')
-    # pass
-
-
 def checkValidJson(data):
     try:
         json_data = json.loads(data)
         customerID, tagID, userID, remoteIP, timestamp = (json_data['customerID'], json_data['tagID'], json_data['userID'], json_data['remoteIP'], json_data['timestamp'])
 
-        if not isinstance(customerID, int):
-            print('customerID must be a number!')
+        if not (isinstance(customerID, int) and isinstance(tagID, int) and isinstance(userID, str) and isinstance(remoteIP, str) and isinstance(timestamp, int)):
+            print('Wrong data type!')
             return False
-        
-        if not isinstance(tagID, int):
-            print('tagID must be a number!')
-            return False
-        
-        if not isinstance(userID, str):
-            print('userID must be a string!')
-            return False
-        
-        if not isinstance(remoteIP, str):
-            print('remoteIP must be a string!')
-            return False
-
-        if not isinstance(timestamp, int):
-            print('timestamp must be a number!')
-            return False
-
-        return customerID, tagID, userID, remoteIP, timestamp
+        else:
+            return customerID, tagID, userID, remoteIP, timestamp
 
     except (ValueError, KeyError, TypeError):
         
         print('Invalid JSON!')
         return False
 
+# On first request start scheduler for hourly statistics
+@app.before_first_request
+def init_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(func=create_hourly_stats, trigger="interval", seconds=60)
+    scheduler.start()
+
+    # Shut down the scheduler when exiting the app
+    atexit.register(lambda: scheduler.shutdown())
 
 
 @app.route('/', methods = ['POST'])
@@ -103,39 +89,9 @@ def index():
 
         customerID, tagID, userID, remoteIP, timestamp = checkValidJson(request.data)
 
-        returnString = 'customerID: ' + str(customerID) + '\n tagID: ' +  str(tagID) + '\n userID: ' +  str(userID) + '\n remoteIP: ' +  str(remoteIP) + '\n timestamp: ' +  str(timestamp)
-
         # Open database
         connection = sqlite3.connect('database.db')
-
         cur = connection.cursor()
-
-        # Check IP
-        try:
-            ip = remoteIP.replace('.', '')
-            ip = int(ip)
-        except:
-            total_request_count[header_customer_id] += 1
-            return 'Incorrect IP!'
-
-
-        # Check if IP is blacklisted
-        ip_blacklist = cur.execute('SELECT * FROM ip_blacklist').fetchall()
-
-        for ip_bl in ip_blacklist:
-            if ip_bl[0] == ip:
-                total_request_count[header_customer_id] += 1
-                return 'Blacklisted IP!'
-
-
-        # Check if username contains blacklisted user agent
-        ua_blacklist = cur.execute('SELECT * FROM ua_blacklist').fetchall()     
-
-        for ua in ua_blacklist:
-            if ua[0] in userID:
-                total_request_count[header_customer_id] += 1
-                return 'Blacklisted User Agent!'
-
 
         # Check if customer exists and is active
         try:
@@ -149,16 +105,47 @@ def index():
             total_request_count[header_customer_id] += 1
             return 'Given customer_id not in the database!'
 
+        ip_blacklist = cur.execute('SELECT * FROM ip_blacklist').fetchall()
+        ua_blacklist = cur.execute('SELECT * FROM ua_blacklist').fetchall()
+
         connection.close()
 
-        # If all above condictions passed then process request
-        process_request(customerID, tagID, userID, remoteIP, timestamp)
-    
+
+        # Check if IP correct
+        try:
+            ip = remoteIP.replace('.', '')
+            ip = int(ip)
+        except:
+            total_request_count[header_customer_id] += 1
+            return 'Incorrect IP!'
+
+
+        # Check if IP is blacklisted
+        for ip_bl in ip_blacklist:
+            if ip_bl[0] == ip:
+                total_request_count[header_customer_id] += 1
+                return 'Blacklisted IP!'
+
+
+        # Check if user agent contains blacklisted user agent
+        header_user_agent = request.headers.get('User-Agent')
+
+        for ua in ua_blacklist:
+            if header_user_agent in ua:
+                total_request_count[header_customer_id] += 1
+                return 'Blacklisted User Agent!'
+                
     else:
         total_request_count[header_customer_id] += 1
 
         # Message to return on POST Endpoint
         return 'Invalid JSON data'
+
+
+    # If all above condictions passed then process request
+    process_request(customerID, tagID, userID, remoteIP, timestamp)
+
+    return 'Success'
 
 
 
