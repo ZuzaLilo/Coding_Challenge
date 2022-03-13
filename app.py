@@ -78,7 +78,11 @@ def index():
     try:
         #  To send request user must provide their credentials first as a parameter
         header_customer_id = int(request.headers.get('customer_id'))
-        total_request_count[header_customer_id] += 1
+        
+        try:
+            total_request_count[header_customer_id] += 1
+        except:
+            return "Customer not in the database!"
 
     except:
         return "To access this service please provide your credentials (customer_id) as a parameter!"
