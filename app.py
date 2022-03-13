@@ -171,7 +171,14 @@ def index():
     return 'Success'
 
 
+# --- GET statistics at '/stats' endpoint ---
+# 
+# Example request for ALL stats per day: 
+#   http://127.0.0.1:5000/stats?year=2022&month=03&day=13
 
+# Example request for stats per day for specific customer: 
+#   http://127.0.0.1:5000/stats?year=2022&month=03&day=13&customer_id=1
+# 
 @app.route('/stats', methods = ['GET'])
 def stats():
 
@@ -216,7 +223,20 @@ def stats():
                     return "Wrong customer ID!"
                 else:
                     connection.close()
-                    return "Total requests on " + str(get_day_start.date()) + " for customer with id " + str(customer_id) + ": Total requests: " + str(requests_per_customer[0][0]) + ", Invalid requests: " + str(requests_per_customer[0][1])
+
+                    result = {}
+
+                    result_time = str(get_day_start.date())
+                    result[result_time] = {
+                        'customer_id':  customer_id,
+                        'total_requests' : requests_per_customer[0][0],
+                        'invalid_requests' : requests_per_customer[0][1]
+                    }
+
+                    json_result = jsonify(result)
+
+                    return result
+
 
             # If no customer_id provided, get all results for day
             requests_in_day_per_customer = cur.execute('SELECT customer_id, SUM(request_count), SUM(invalid_count) FROM hourly_stats WHERE time BETWEEN ? AND ? GROUP BY customer_id ORDER BY customer_id DESC', (day_start_timestamp, day_end_timestamp)).fetchall()
@@ -262,7 +282,12 @@ def stats():
         return '''Please provide date arguments: day, month and year to the request (in numbers), 
                 \nFor today use: http://127.0.0.1:5000/stats?day={}&month={}&year={}'''.format(current_day.day, current_day.month, current_day.year)
 
-    
+
+# --- GET statistics at '/customerStats' endpoint ---
+# 
+# Example request for ALL stats per customer: 
+#   http://127.0.0.1:5000/customerStats?customer_id=1
+# 
 @app.route('/customerStats', methods = ['GET'])
 def customerStats():
 
@@ -277,22 +302,23 @@ def customerStats():
 
             connection.close()
 
-            result = {}
-
-            for row in stats_per_customer:
-
-                result_time = str(time.ctime(row[0]))
-                result[result_time] = {
-                    'total_requests' : row[1],
-                    'invalid_requests' : row[2]
-                }
-
-            json_result = jsonify(result)
-
-            if stats_per_customer[0][0] != None:
-                return json_result
-            else: 
+            if stats_per_customer[0][0] == None:
                 return "Wrong customer ID!"      
+            else:
+                result = {}
+
+                for row in stats_per_customer:
+
+                    result_time = str(time.ctime(row[0]))
+                    result[result_time] = {
+                        'total_requests' : row[1],
+                        'invalid_requests' : row[2]
+                    }
+
+                json_result = jsonify(result)
+
+            
+                return json_result    
 
         except:
             return "Failed to fetch results from database!"
@@ -301,7 +327,9 @@ def customerStats():
         return "Please provide a valid customer_id as a parameter!"
 
 
-
+# 
+# --- MAIN ---
+# 
 if __name__ == '__main__':
 
     '''Create global dictionaries storing total and invalid request counts for every user'''
@@ -321,6 +349,6 @@ if __name__ == '__main__':
     invalid_request_count = manager.dict({i: 0 for i in customer_ids})
 
 
-    '''Start app'''
+    ''' --- Start app --- '''
 
     app.run(debug = True, port=5000)
