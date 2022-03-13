@@ -12,6 +12,18 @@ def create_hourly_stats():
     print("\n")
     print(time.strftime("%A, %d. %B %Y %I:%M:%S %p"))
 
+    time_now = time.time()
+
+    connection = sqlite3.connect('database.db')
+    cur = connection.cursor()
+
+    for client_id, req_count in total_request_count.items():
+        cur.execute('INSERT INTO hourly_stats (customer_id, time, request_count, invalid_count) VALUES (?, ?, ?, ?)', (client_id, time_now, req_count, invalid_request_count[client_id]))
+
+
+    connection.commit()
+    connection.close()
+
     print("----total_request_count-----")
     print(total_request_count)
     print("----invalid_request_count-----")
@@ -78,8 +90,6 @@ def index():
     except:
         print("Can't count request: can't find customer id!")
 
-    # Message to return on POST Endpoint (will be replaced depending on validity of request)
-    returnString = 'Invalid request'
 
     # returns true or false
     if checkValidJson(request.data):
@@ -99,7 +109,8 @@ def index():
             ip = int(ip)
         except:
             returnString = 'Incorrect IP!'
-            # TODO: exit and return invlaid request
+            invalid_request_count[customerID] += 1
+            # TODO: exit
 
 
         # Check if IP is blacklisted
@@ -108,7 +119,8 @@ def index():
         for ip_bl in ip_blacklist:
             if ip_bl[0] == ip:
                 returnString = 'Blacklisted IP!'
-                # TODO: exit and return invlaid request
+                invalid_request_count[customerID] += 1
+                # TODO: exit
 
 
         # Check if username contains blacklisted user agent
@@ -117,7 +129,8 @@ def index():
         for ua in ua_blacklist:
             if ua[0] in userID:
                 returnString = 'Blacklisted User Agent!'
-                # TODO: exit and return invlaid request
+                invalid_request_count[customerID] += 1
+                # TODO: exit
 
 
         # Check if customer exists and is active
@@ -126,17 +139,26 @@ def index():
 
             if customerActivity[0][0] == 0:
                 returnString = 'Customer inactive!'
-                # TODO: exit and return invlaid request
+                invalid_request_count[customerID] += 1
+                # TODO: exit
 
         except:
-            returnString = 'Customer not in the database!'
-            # TODO: exit and return invlaid request
+            returnString = 'Customer not in the database, cannot assign count request to customer!'
+            # TODO: exit
 
         connection.close()
 
 
         process_request(customerID, tagID, userID, remoteIP, timestamp)
+    
+    else:
+        # Message to return on POST Endpoint
+        returnString = 'Invalid request'
 
+        try:
+            invalid_request_count[customer_id] += 1
+        except:
+            print("Can't count request: can't find customer id!")
 
 
     return returnString
