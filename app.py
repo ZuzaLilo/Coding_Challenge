@@ -171,16 +171,13 @@ def index():
     return 'Success'
 
 
-# --- GET statistics at '/stats' endpoint ---
+# --- GET statistics at '/dayStats' endpoint ---
 # 
-# Example request for ALL stats per day: 
-#   http://127.0.0.1:5000/stats?year=2022&month=03&day=13
-
-# Example request for stats per day for specific customer: 
-#   http://127.0.0.1:5000/stats?year=2022&month=03&day=13&customer_id=1
+# Example request for all stats per day: 
+#   http://127.0.0.1:5000/dayStats?year=2022&month=03&day=13
 # 
-@app.route('/stats', methods = ['GET'])
-def stats():
+@app.route('/dayStats', methods = ['GET'])
+def dayStats():
 
     # Get parameters from request
     day = request.args.get('day')
@@ -213,32 +210,7 @@ def stats():
             connection = sqlite3.connect('database.db')
             cur = connection.cursor()
 
-            # If customer id provided
-            if customer_id:
-
-                requests_per_customer = cur.execute('SELECT SUM(request_count), SUM(invalid_count) FROM hourly_stats WHERE (time BETWEEN ? AND ?) AND customer_id = ?', (day_start_timestamp, day_end_timestamp, customer_id)).fetchall()
-
-                if requests_per_customer[0][0] == None:
-                    connection.close()
-                    return "Wrong customer ID!"
-                else:
-                    connection.close()
-
-                    result = {}
-
-                    result_time = str(get_day_start.date())
-                    result[result_time] = {
-                        'customer_id':  customer_id,
-                        'total_requests' : requests_per_customer[0][0],
-                        'invalid_requests' : requests_per_customer[0][1]
-                    }
-
-                    json_result = jsonify(result)
-
-                    return result
-
-
-            # If no customer_id provided, get all results for day
+            # Get results from database
             requests_in_day_per_customer = cur.execute('SELECT customer_id, SUM(request_count), SUM(invalid_count) FROM hourly_stats WHERE time BETWEEN ? AND ? GROUP BY customer_id ORDER BY customer_id DESC', (day_start_timestamp, day_end_timestamp)).fetchall()
       
             requests_in_day_total = cur.execute('SELECT SUM(request_count), SUM(invalid_count) FROM hourly_stats WHERE time BETWEEN ? AND ?', (day_start_timestamp, day_end_timestamp)).fetchall()
@@ -283,6 +255,82 @@ def stats():
                 \nFor today use: http://127.0.0.1:5000/stats?day={}&month={}&year={}'''.format(current_day.day, current_day.month, current_day.year)
 
 
+# --- GET statistics at '/customerDayStats' endpoint ---
+# 
+# Example request for stats per day for specific customer: 
+#   http://127.0.0.1:5000/customerDayStats?year=2022&month=03&day=13&customer_id=1
+# 
+@app.route('/customerDayStats', methods = ['GET'])
+def customerDayStats():
+
+    # Get parameters from request
+    day = request.args.get('day')
+    month = request.args.get('month')
+    year = request.args.get('year')
+
+    customer_id = request.args.get('customer_id')
+
+    # For specific day statistics
+    if day and month and year and customer_id:
+
+        try:
+            day = int(request.args.get('day'))
+            month = int(request.args.get('month'))
+            year = int(request.args.get('year'))
+            customer_id = int(request.args.get('customer_id'))
+        except:
+            return "Arguments must be numeric!"
+
+        # Create datetime object for day start
+        get_day_start = datetime(year, month, day, tzinfo=tz.tzutc())
+        # Add a day difference to create end day object
+        get_day_end = get_day_start + timedelta(1)
+
+        # Convert to timestamps
+        day_start_timestamp = get_day_start.timestamp()
+        day_end_timestamp = get_day_end.timestamp()
+
+
+        try: 
+            # Connect to database
+            connection = sqlite3.connect('database.db')
+            cur = connection.cursor()
+
+
+            requests_per_customer = cur.execute('SELECT SUM(request_count), SUM(invalid_count) FROM hourly_stats WHERE (time BETWEEN ? AND ?) AND customer_id = ?', (day_start_timestamp, day_end_timestamp, customer_id)).fetchall()
+            connection.close()
+
+            if requests_per_customer[0][0] == None:
+                
+                return "No results from database!"
+            else:
+
+                result = {}
+
+                result_time = str(get_day_start.date())
+                result[result_time] = {
+                    'customer_id':  customer_id,
+                    'total_requests' : requests_per_customer[0][0],
+                    'invalid_requests' : requests_per_customer[0][1]
+                }
+
+                json_result = jsonify(result)
+
+                return json_result
+
+        except:
+            return "Failed to fetch results from database!"
+
+    else:   
+        # If arguments not properly provided or arguments not numeric
+        
+        # Get today's date
+        current_day = date.today()
+
+        return '''Please provide date arguments: day, month and year to the request (in numbers), 
+                \nFor today use: http://127.0.0.1:5000/stats?day={}&month={}&year={}'''.format(current_day.day, current_day.month, current_day.year)
+
+
 # --- GET statistics at '/customerStats' endpoint ---
 # 
 # Example request for ALL stats per customer: 
@@ -303,7 +351,7 @@ def customerStats():
             connection.close()
 
             if stats_per_customer[0][0] == None:
-                return "Wrong customer ID!"      
+                return "No results from database!"    
             else:
                 result = {}
 
